@@ -133,17 +133,16 @@ VALUES
 
 select * from p2p_tef;
 
-SELECT a.customer_id, a.dt,
-    CASE 
-        WHEN b.event_id IS NOT NULL THEN 'boleto' 
-        WHEN t.event_id IS NOT NULL THEN 'p2p' 
-        WHEN pr.event_id IS NOT NULL THEN 'pix_received' 
-        WHEN ps.event_id IS NOT NULL THEN 'pix_send' 
-    END AS transaction_type,
-    AVG(COALESCE(b.amount, t.amount, pr.amount, ps.amount)) AS average_transaction_value
-FROM account a 
-LEFT JOIN bankslip b ON a.account_id = b.account_id 
-LEFT JOIN p2p_tef t ON a.account_id = t.account_id_source 
-LEFT JOIN pix_received pr ON a.account_id = pr.account_id 
-LEFT JOIN pix_send ps ON a.account_id = ps.account_id 
-GROUP BY a.customer_id, a.dt, transaction_type;
+
+SELECT c.customer_id, a.account_id, name FROM customer AS c
+INNER JOIN account AS a on c.customer_id = a.customer_id;
+
+SELECT account_id, amount, dt FROM bankslip
+UNION ALL
+SELECT account_id, amount, dt FROM pix_send
+UNION ALL
+SELECT account_id, amount, dt FROM pix_received
+UNION ALL
+SELECT account_id_source, amount, dt FROM p2p_tef
+UNION ALL
+SELECT account_id_destination, amount, dt FROM p2p_tef;
