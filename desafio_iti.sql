@@ -140,3 +140,51 @@ UNION ALL
 SELECT account_id_source, amount, dt FROM p2p_tef
 UNION ALL
 SELECT account_id_destination, amount, dt FROM p2p_tef;
+
+
+SELECT c.customer_id, a.account_id, c.name, t.dt AS date, 
+       CASE 
+           WHEN t.event_id LIKE 'pix%' THEN 'pix'
+           WHEN t.event_id LIKE 'p2p%' THEN 'p2p'
+           WHEN t.event_id LIKE 'bankslip%' THEN 'bankslip'
+       END AS transaction_type,
+       AVG(CASE
+               WHEN t.event_id LIKE 'pix%' THEN p.amount
+               WHEN t.event_id LIKE 'p2p%' THEN p.amount
+               WHEN t.event_id LIKE 'bankslip%' THEN b.amount
+           END) AS mean_value
+FROM customer c
+INNER JOIN account a ON c.customer_id = a.customer_id
+LEFT JOIN pix_send p ON a.account_id = p.account_id
+LEFT JOIN pix_received pr ON a.account_id = pr.account_id
+LEFT JOIN p2p_tef pt ON a.account_id = pt.account_id_source OR a.account_id = pt.account_id_destination
+LEFT JOIN bankslip b ON a.account_id = b.account_id
+LEFT JOIN (
+    SELECT DISTINCT account_id, dt, event_id
+    FROM pix_send
+    UNION
+    SELECT DISTINCT account_id, dt, event_id
+    FROM pix_received
+    UNION
+    SELECT DISTINCT account_id_source AS account_id, dt, event_id
+    FROM p2p_tef
+    UNION
+    SELECT DISTINCT account_id_destination AS account_id, dt, event_id
+    FROM p2p_tef
+    UNION
+    SELECT DISTINCT account_id, dt, event_id
+    FROM bankslip
+) AS t ON a.account_id = t.account_id
+GROUP BY c.customer_id, a.account_id, c.name, t.dt, transaction_type;
+
+-- Explicação:
+
+-- Começamos selecionando as colunas que queremos recuperar: customer_id, account_id, name, dt (data da transação), transaction_type (uma coluna calculada com base na coluna event_id) e o valor médio da transação (mean_value).
+-- Unimos as tabelas customer e account usando a coluna customer_id.
+-- Fazemos um left join em todas as tabelas de transações (pix_send, pix_received, p2p_tef, bankslip) na coluna account_id. Usamos um left join porque nem todas as contas podem ter transações de todos os tipos.
+-- Usamos uma subconsulta para combinar as tabelas de transação e obter uma lista distinta de todos os IDs de conta, datas de transação e IDs de evento em todos os tipos de transação.
+-- Juntamos essa subconsulta com a tabela account na coluna account_id para obter as informações da conta para cada transação.
+-- Agrupamos os resultados por customer_id, account_id, name, dt e transaction_type.
+-- Usamos a função AVG para calcular a média do valor da transação para cada grupo, usando uma declaração CASE para selecionar a coluna apropriada (amount) com base no tipo de transação.
+-- Observação: esta consulta pressupõe que cada transação tem um `event
+
